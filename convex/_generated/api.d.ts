@@ -8,7 +8,13 @@
  * @module
  */
 
-import type * as myFunctions from "../myFunctions.js";
+import type * as _utils_auth from "../_utils/auth.js";
+import type * as applications from "../applications.js";
+import type * as clerkWebhook from "../clerkWebhook.js";
+import type * as http from "../http.js";
+import type * as jobs from "../jobs.js";
+import type * as organizations from "../organizations.js";
+import type * as users from "../users.js";
 
 import type {
   ApiFromModules,
@@ -17,7 +23,13 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
-  myFunctions: typeof myFunctions;
+  "_utils/auth": typeof _utils_auth;
+  applications: typeof applications;
+  clerkWebhook: typeof clerkWebhook;
+  http: typeof http;
+  jobs: typeof jobs;
+  organizations: typeof organizations;
+  users: typeof users;
 }>;
 
 /**

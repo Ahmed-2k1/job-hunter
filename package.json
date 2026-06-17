@@ -11,10 +11,19 @@
   "dependencies": {
     "@clerk/clerk-react": "^5.61.3",
     "@clerk/nextjs": "^6.39.2",
+    "@hookform/resolvers": "^5.4.0",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
     "convex": "^1.36.1",
+    "lucide-react": "^1.18.0",
     "next": "^16.2.4",
     "react": "^19.2.5",
-    "react-dom": "^19.2.5"
+    "react-dom": "^19.2.5",
+    "react-hook-form": "^7.79.0",
+    "sonner": "^2.0.7",
+    "svix": "^1.95.2",
+    "tailwind-merge": "^3.6.0",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@convex-dev/eslint-plugin": "^2.0.0",
