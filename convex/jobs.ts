@@ -1,10 +1,8 @@
 import { v } from "convex/values";
 import { ConvexError } from "convex/values";
 import { mutation, query } from "./_generated/server";
-import { getClerkOrgId } from "./_utils/auth";
 import { paginationOptsValidator } from "convex/server";
-
-const FREE_PLAN_JOB_LIMIT = 3;
+import { JOB_LIMITS, FEATURED_LIMITS } from "./billing";
 
 const jobTypeValidator = v.union(
   v.literal("full-time"),
@@ -21,14 +19,29 @@ export const listPublicJobs = query({
     location: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    let q = ctx.db
+    // Featured jobs are pinned to the top of the very first page only.
+    // Later pages just paginate through the non-featured jobs as before.
+    const isFirstPage = args.paginationOpts.cursor === null;
+
+    const featuredJobs = isFirstPage
+      ? await ctx.db
+          .query("jobs")
+          .withIndex("by_featured_and_status", (q) =>
+            q.eq("featured", true).eq("status", "active")
+          )
+          .order("desc")
+          .take(50)
+      : [];
+
+    const result = await ctx.db
       .query("jobs")
-      .withIndex("by_status", (q) => q.eq("status", "active"))
-      .order("desc");
+      .withIndex("by_featured_and_status", (q) =>
+        q.eq("featured", false).eq("status", "active")
+      )
+      .order("desc")
+      .paginate(args.paginationOpts);
 
-    const result = await q.paginate(args.paginationOpts);
-
-    let jobs = result.page;
+    let jobs = [...featuredJobs, ...result.page];
     if (args.type) {
       jobs = jobs.filter((j) => j.type === args.type);
     }
@@ -197,9 +210,12 @@ export const publishJob = mutation({
     const org = await ctx.db.get(job.orgId);
     if (!org) throw new ConvexError("Organization not found");
 
-    if (org.billingPlan === "free" && org.activeJobCount >= FREE_PLAN_JOB_LIMIT) {
+    // TODO(Phase 4): replace "starter" with the org's real plan, resolved via
+    // Clerk's auth().has({ plan }) on the Next.js side and passed in here.
+    const starterLimit = JOB_LIMITS.starter;
+    if (starterLimit !== null && org.activeJobCount >= starterLimit) {
       throw new ConvexError(
-        `Free plan limit reached (${FREE_PLAN_JOB_LIMIT} active jobs). Upgrade to Pro to post more.`
+        `Starter plan limit reached (${starterLimit} active jobs). Upgrade to Pro to post more.`
       );
     }
 
@@ -262,9 +278,53 @@ export const closeJob = mutation({
 
     if (job.status === "active") {
       const org = await ctx.db.get(job.orgId);
-      if (org && org.activeJobCount > 0) {
-        await ctx.db.patch(org._id, { activeJobCount: org.activeJobCount - 1 });
+      if (org) {
+        const patch: { activeJobCount?: number; featuredJobCount?: number } = {};
+        if (org.activeJobCount > 0) patch.activeJobCount = org.activeJobCount - 1;
+        if (job.featured && org.featuredJobCount > 0) {
+          patch.featuredJobCount = org.featuredJobCount - 1;
+        }
+        if (Object.keys(patch).length > 0) {
+          await ctx.db.patch(org._id, patch);
+        }
       }
     }
+  },
+});
+
+// Employer: mark/unmark a job as featured (billing gate lives here)
+export const featureJob = mutation({
+  args: { jobId: v.id("jobs"), clerkOrgId: v.string(), featured: v.boolean() },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new ConvexError("Not authenticated");
+
+    const callerOrgId = (identity as Record<string, unknown>).org_id as string | undefined;
+    if (callerOrgId !== args.clerkOrgId) {
+      throw new ConvexError("Access denied");
+    }
+
+    const job = await ctx.db.get(args.jobId);
+    if (!job || job.clerkOrgId !== args.clerkOrgId) throw new ConvexError("Job not found");
+    if (job.featured === args.featured) return; // no-op
+
+    const org = await ctx.db.get(job.orgId);
+    if (!org) throw new ConvexError("Organization not found");
+
+    if (args.featured) {
+      // TODO(Phase 4): replace "starter" with the org's real plan, resolved via
+      // Clerk's auth().has({ plan }) on the Next.js side and passed in here.
+      const featuredLimit = FEATURED_LIMITS.starter;
+      if (featuredLimit !== null && org.featuredJobCount >= featuredLimit) {
+        throw new ConvexError(
+          `Starter plan doesn't include featured listings. Upgrade to Pro to feature jobs.`
+        );
+      }
+      await ctx.db.patch(org._id, { featuredJobCount: org.featuredJobCount + 1 });
+    } else if (org.featuredJobCount > 0) {
+      await ctx.db.patch(org._id, { featuredJobCount: org.featuredJobCount - 1 });
+    }
+
+    await ctx.db.patch(args.jobId, { featured: args.featured });
   },
 });

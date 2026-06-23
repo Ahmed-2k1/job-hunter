@@ -26,26 +26,10 @@ export const syncOrg = internalMutation({
         name: args.name,
         slug: args.slug,
         imageUrl: args.imageUrl,
-        billingPlan: "free",
         activeJobCount: 0,
+        featuredJobCount: 0,
+        reconcileRequired: false,
       });
-    }
-  },
-});
-
-export const syncOrgPlan = internalMutation({
-  args: {
-    clerkOrgId: v.string(),
-    billingPlan: v.union(v.literal("free"), v.literal("pro")),
-  },
-  handler: async (ctx, args) => {
-    const org = await ctx.db
-      .query("organizations")
-      .withIndex("by_clerk_org_id", (q) => q.eq("clerkOrgId", args.clerkOrgId))
-      .unique();
-
-    if (org) {
-      await ctx.db.patch(org._id, { billingPlan: args.billingPlan });
     }
   },
 });
@@ -64,5 +48,22 @@ export const getOrgById = query({
   args: { orgId: v.id("organizations") },
   handler: async (ctx, args) => {
     return ctx.db.get(args.orgId);
+  },
+});
+
+// One-time backfill: fills in featuredJobCount/reconcileRequired for orgs
+// created before these fields existed. Safe to run multiple times.
+export const backfillBillingFields = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const orgs = await ctx.db.query("organizations").collect();
+    for (const org of orgs) {
+      if (org.featuredJobCount === undefined || org.reconcileRequired === undefined) {
+        await ctx.db.patch(org._id, {
+          featuredJobCount: org.featuredJobCount ?? 0,
+          reconcileRequired: org.reconcileRequired ?? false,
+        });
+      }
+    }
   },
 });

@@ -10,6 +10,7 @@
 
 import type * as _utils_auth from "../_utils/auth.js";
 import type * as applications from "../applications.js";
+import type * as billing from "../billing.js";
 import type * as clerkWebhook from "../clerkWebhook.js";
 import type * as http from "../http.js";
 import type * as jobs from "../jobs.js";
@@ -25,6 +26,7 @@ import type {
 declare const fullApi: ApiFromModules<{
   "_utils/auth": typeof _utils_auth;
   applications: typeof applications;
+  billing: typeof billing;
   clerkWebhook: typeof clerkWebhook;
   http: typeof http;
   jobs: typeof jobs;

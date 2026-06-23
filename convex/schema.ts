@@ -18,8 +18,10 @@ export default defineSchema({
     name: v.string(),
     slug: v.string(),
     imageUrl: v.optional(v.string()),
-    billingPlan: v.union(v.literal("free"), v.literal("pro")),
     activeJobCount: v.number(),
+    featuredJobCount: v.number(),
+    reconcileRequired: v.boolean(),
+    reconcileTargetLimit: v.optional(v.number()),
   }).index("by_clerk_org_id", ["clerkOrgId"]),
 
   jobs: defineTable({
