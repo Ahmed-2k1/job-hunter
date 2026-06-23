@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { JobCard } from "@/components/job-card";
 import { Briefcase, Plus, AlertCircle } from "lucide-react";
+import { JOB_LIMITS } from "@/convex/billing";
 
 const statusLabels = { active: "Active", draft: "Draft", closed: "Closed" } as const;
 
@@ -27,7 +28,9 @@ export default function EmployerDashboard() {
   const closedJobs = data?.jobs.filter((j) => j.status === "closed") ?? [];
   const totalApplications = data?.jobs.reduce((sum, j) => sum + j.applicationCount, 0) ?? 0;
 
-  const isFreePlanAtLimit = orgDoc?.billingPlan === "free" && (orgDoc?.activeJobCount ?? 0) >= 3;
+  // TODO(Phase 4/5): replace with the org's real plan via getCurrentPlan().
+  const starterLimit = JOB_LIMITS.starter ?? Infinity;
+  const isFreePlanAtLimit = (orgDoc?.activeJobCount ?? 0) >= starterLimit;
 
   return (
     <div className="space-y-8">

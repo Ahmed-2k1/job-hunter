@@ -55,7 +55,6 @@ export const verifyAndSync = internalAction({
         name: string;
         slug?: string | null;
         image_url?: string;
-        public_metadata?: { billing_plan?: string };
       };
 
       await ctx.runMutation(internal.organizations.syncOrg, {
@@ -64,14 +63,6 @@ export const verifyAndSync = internalAction({
         slug: org.slug ?? org.id,
         imageUrl: org.image_url,
       });
-
-      if (org.public_metadata?.billing_plan) {
-        const plan = org.public_metadata.billing_plan === "pro" ? "pro" : "free";
-        await ctx.runMutation(internal.organizations.syncOrgPlan, {
-          clerkOrgId: org.id,
-          billingPlan: plan,
-        });
-      }
     }
 
     return { ok: true };
