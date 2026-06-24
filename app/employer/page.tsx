@@ -1,19 +1,34 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useOrganization } from "@clerk/nextjs";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Stamp } from "@/components/ui/stamp";
 import { JobCard } from "@/components/job-card";
 import { Briefcase, Plus, AlertCircle } from "lucide-react";
-import { JOB_LIMITS } from "@/convex/billing";
+import { JOB_LIMITS, type PlanSlug } from "@/convex/billing";
+import { getCurrentPlan } from "./actions";
+import { ReconcileModal } from "./reconcile-modal";
 
 const statusLabels = { active: "Active", draft: "Draft", closed: "Closed" } as const;
+const planMeta: Record<PlanSlug, { variant: "free" | "pro"; label: string }> = {
+  starter: { variant: "free", label: "Starter" },
+  pro: { variant: "pro", label: "Pro" },
+  enterprise: { variant: "pro", label: "Enterprise" },
+};
 
 export default function EmployerDashboard() {
   const { organization } = useOrganization();
+  const [plan, setPlan] = useState<PlanSlug | null>(null);
+
+  useEffect(() => {
+    if (organization) getCurrentPlan().then(setPlan).catch(() => setPlan("starter"));
+  }, [organization]);
+
   const data = useQuery(
     api.jobs.listOrgJobs,
     organization ? { clerkOrgId: organization.id } : "skip"
@@ -28,16 +43,35 @@ export default function EmployerDashboard() {
   const closedJobs = data?.jobs.filter((j) => j.status === "closed") ?? [];
   const totalApplications = data?.jobs.reduce((sum, j) => sum + j.applicationCount, 0) ?? 0;
 
-  // TODO(Phase 4/5): replace with the org's real plan via getCurrentPlan().
-  const starterLimit = JOB_LIMITS.starter ?? Infinity;
-  const isFreePlanAtLimit = (orgDoc?.activeJobCount ?? 0) >= starterLimit;
+  // The real plan's active-job limit (null = unlimited).
+  const jobLimit = plan ? JOB_LIMITS[plan] : null;
+  const activeCount = orgDoc?.activeJobCount ?? 0;
+  const atLimit = jobLimit !== null && activeCount >= jobLimit;
+
+  // Show the blocking reconcile modal only after a downgrade left too many active jobs.
+  const showReconcile =
+    orgDoc?.reconcileRequired === true && activeJobs.length > 0;
 
   return (
     <div className="space-y-8">
+      {showReconcile && (
+        <ReconcileModal
+          activeJobs={activeJobs.map((j) => ({ _id: j._id, title: j.title }))}
+          targetLimit={orgDoc?.reconcileTargetLimit ?? jobLimit ?? 0}
+        />
+      )}
+
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="font-display text-3xl font-semibold">{organization?.name ?? "Dashboard"}</h1>
-          <p className="text-muted-foreground mt-1">Manage your job postings and applications</p>
+          <div className="flex items-center gap-3">
+            <h1 className="font-display text-3xl font-semibold">{organization?.name ?? "Dashboard"}</h1>
+            {plan && <Stamp variant={planMeta[plan].variant}>{planMeta[plan].label}</Stamp>}
+          </div>
+          <p className="text-muted-foreground mt-1">
+            {jobLimit === null
+              ? "Unlimited active jobs"
+              : `${activeCount} of ${jobLimit} active jobs used`}
+          </p>
         </div>
         <Link href="/employer/jobs/new">
           <Button>
@@ -47,17 +81,17 @@ export default function EmployerDashboard() {
         </Link>
       </div>
 
-      {isFreePlanAtLimit && (
+      {atLimit && (
         <div className="flex items-start gap-3 p-4 rounded-md border border-gold/40 bg-gold/10 text-gold">
           <AlertCircle className="h-5 w-5 mt-0.5 shrink-0" />
           <div>
-            <p className="font-medium">Free plan limit reached</p>
+            <p className="font-medium">{planMeta[plan!].label} plan limit reached</p>
             <p className="text-sm mt-1">
-              You have 3 active job postings (the free plan limit).{" "}
-              <Link href="/employer/settings" className="underline font-medium">
-                Upgrade to Pro
+              You have {activeCount} active job postings (your plan&apos;s limit).{" "}
+              <Link href="/employer/billing" className="underline font-medium">
+                Upgrade
               </Link>{" "}
-              to post unlimited jobs.
+              to post more.
             </p>
           </div>
         </div>

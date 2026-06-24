@@ -10,7 +10,7 @@ export default async function EmployerLayout({
   const { userId, orgId } = await auth();
 
   if (!userId) redirect("/sign-in");
-  if (!orgId) redirect("/employer/onboarding");
+  if (!orgId) redirect("/onboarding");
 
   return (
     <div className="min-h-screen bg-background">
