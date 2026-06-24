@@ -4,11 +4,13 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { OrganizationSwitcher, UserButton } from "@clerk/nextjs";
 import { cn } from "@/lib/utils";
-import { Briefcase, LayoutDashboard, Settings } from "lucide-react";
+import { Briefcase, CreditCard, LayoutDashboard, Settings, Users } from "lucide-react";
 
 const navItems = [
   { href: "/employer", label: "Dashboard", icon: LayoutDashboard },
   { href: "/employer/jobs", label: "Job Postings", icon: Briefcase },
+  { href: "/employer/team", label: "Team", icon: Users },
+  { href: "/employer/billing", label: "Billing", icon: CreditCard },
   { href: "/employer/settings", label: "Settings", icon: Settings },
 ];
 

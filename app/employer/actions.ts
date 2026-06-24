@@ -34,6 +34,67 @@ export async function getCurrentPlan(): Promise<PlanSlug> {
   return "starter";
 }
 
+// ─── Team data ───────────────────────────────────────────────────────────────
+
+export type TeamMember = {
+  membershipUserId: string;
+  name: string;
+  email: string;
+  role: string;
+  imageUrl: string;
+};
+
+export type TeamData = {
+  orgId: string;
+  plan: PlanSlug;
+  members: TeamMember[];
+  usedSeats: number;
+  seatLimit: number | null; // null = unlimited
+  isAdmin: boolean;
+  currentUserId: string;
+};
+
+/**
+ * Returns everything the Team page needs: the member list, the seat limit for
+ * the current plan, and whether the signed-in user is an org admin.
+ */
+export async function getTeamData(): Promise<TeamData> {
+  const session = await auth();
+  const orgId = session.orgId;
+  if (!orgId) throw new Error("No active organization");
+
+  const plan = await getCurrentPlan();
+  const client = await clerkClient();
+  const currentUserId = session.userId ?? "";
+
+  const { data, totalCount } = await client.organizations.getOrganizationMembershipList({
+    organizationId: orgId,
+    limit: 100,
+  });
+
+  const members: TeamMember[] = data.map((m) => {
+    const u = m.publicUserData;
+    const fullName = [u?.firstName, u?.lastName].filter(Boolean).join(" ");
+    return {
+      membershipUserId: u?.userId ?? "",
+      name: fullName || u?.identifier || "Unknown",
+      email: u?.identifier ?? "",
+      role: m.role,
+      imageUrl: u?.imageUrl ?? "",
+    };
+  });
+
+  return {
+    orgId,
+    plan,
+    members,
+    usedSeats: totalCount,
+    seatLimit: SEAT_LIMITS[plan],
+    isAdmin: session.orgRole === "org:admin",
+    currentUserId,
+  };
+}
+
 // ─── Job actions ─────────────────────────────────────────────────────────────
 
 /**

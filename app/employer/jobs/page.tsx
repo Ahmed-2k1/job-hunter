@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useOrganization } from "@clerk/nextjs";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
@@ -8,9 +9,10 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { JobCard } from "@/components/job-card";
-import { Plus, Eye, X, Rocket } from "lucide-react";
+import { Plus, Eye, X, Rocket, Star } from "lucide-react";
 import { toast } from "sonner";
-import { publishJobAction } from "../actions";
+import { FEATURED_LIMITS, type PlanSlug } from "@/convex/billing";
+import { publishJobAction, featureJobAction, getCurrentPlan } from "../actions";
 
 const statusLabels = { active: "Active", draft: "Draft", closed: "Closed" } as const;
 const typeLabels: Record<string, string> = {
@@ -22,11 +24,20 @@ const typeLabels: Record<string, string> = {
 
 export default function EmployerJobsPage() {
   const { organization } = useOrganization();
+  const [plan, setPlan] = useState<PlanSlug | null>(null);
+
+  useEffect(() => {
+    if (organization) getCurrentPlan().then(setPlan).catch(() => setPlan("starter"));
+  }, [organization]);
+
   const data = useQuery(
     api.jobs.listOrgJobs,
     organization ? { clerkOrgId: organization.id } : "skip"
   );
   const closeJob = useMutation(api.jobs.closeJob);
+
+  // Starter (limit 0) can't feature jobs; Pro/Enterprise can.
+  const canFeature = plan !== null && FEATURED_LIMITS[plan] !== 0;
 
   async function handlePublish(jobId: Id<"jobs">) {
     try {
@@ -34,6 +45,15 @@ export default function EmployerJobsPage() {
       toast.success("Job published successfully");
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : "Failed to publish job");
+    }
+  }
+
+  async function handleFeature(jobId: Id<"jobs">, featured: boolean) {
+    try {
+      await featureJobAction(jobId, featured);
+      toast.success(featured ? "Job featured" : "Job unfeatured");
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Failed to update featured status");
     }
   }
 
@@ -93,6 +113,29 @@ export default function EmployerJobsPage() {
                       onClick={() => handlePublish(job._id)}
                     >
                       <Rocket className="h-4 w-4 text-pine" />
+                    </Button>
+                  )}
+                  {job.status === "active" && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      disabled={!canFeature}
+                      title={
+                        canFeature
+                          ? job.featured
+                            ? "Remove from featured"
+                            : "Feature this job"
+                          : "Featured listings are a Pro feature — upgrade to enable"
+                      }
+                      onClick={() => handleFeature(job._id, !job.featured)}
+                    >
+                      <Star
+                        className={
+                          job.featured
+                            ? "h-4 w-4 fill-gold text-gold"
+                            : "h-4 w-4 text-muted-foreground"
+                        }
+                      />
                     </Button>
                   )}
                   {job.status === "active" && (

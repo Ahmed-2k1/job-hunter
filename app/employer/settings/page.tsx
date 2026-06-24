@@ -10,6 +10,7 @@ export default function EmployerSettingsPage() {
         </p>
       </div>
       <OrganizationProfile
+        routing="hash"
         appearance={{
           elements: {
             rootBox: "w-full",
