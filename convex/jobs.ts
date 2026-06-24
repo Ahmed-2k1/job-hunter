@@ -4,6 +4,12 @@ import { mutation, query } from "./_generated/server";
 import { paginationOptsValidator } from "convex/server";
 import { JOB_LIMITS, FEATURED_LIMITS } from "./billing";
 
+const planValidator = v.union(
+  v.literal("starter"),
+  v.literal("pro"),
+  v.literal("enterprise")
+);
+
 const jobTypeValidator = v.union(
   v.literal("full-time"),
   v.literal("part-time"),
@@ -192,7 +198,7 @@ export const createJob = mutation({
 
 // Employer: publish a draft job (billing gate lives here)
 export const publishJob = mutation({
-  args: { jobId: v.id("jobs"), clerkOrgId: v.string() },
+  args: { jobId: v.id("jobs"), clerkOrgId: v.string(), plan: planValidator },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new ConvexError("Not authenticated");
@@ -210,12 +216,16 @@ export const publishJob = mutation({
     const org = await ctx.db.get(job.orgId);
     if (!org) throw new ConvexError("Organization not found");
 
-    // TODO(Phase 4): replace "starter" with the org's real plan, resolved via
-    // Clerk's auth().has({ plan }) on the Next.js side and passed in here.
-    const starterLimit = JOB_LIMITS.starter;
-    if (starterLimit !== null && org.activeJobCount >= starterLimit) {
+    if (org.reconcileRequired) {
       throw new ConvexError(
-        `Starter plan limit reached (${starterLimit} active jobs). Upgrade to Pro to post more.`
+        "You have more active jobs than your current plan allows. Please close some jobs before posting new ones."
+      );
+    }
+
+    const limit = JOB_LIMITS[args.plan];
+    if (limit !== null && org.activeJobCount >= limit) {
+      throw new ConvexError(
+        `${args.plan} plan limit reached (${limit} active jobs). Upgrade to post more.`
       );
     }
 
@@ -294,7 +304,7 @@ export const closeJob = mutation({
 
 // Employer: mark/unmark a job as featured (billing gate lives here)
 export const featureJob = mutation({
-  args: { jobId: v.id("jobs"), clerkOrgId: v.string(), featured: v.boolean() },
+  args: { jobId: v.id("jobs"), clerkOrgId: v.string(), featured: v.boolean(), plan: planValidator },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new ConvexError("Not authenticated");
@@ -312,12 +322,12 @@ export const featureJob = mutation({
     if (!org) throw new ConvexError("Organization not found");
 
     if (args.featured) {
-      // TODO(Phase 4): replace "starter" with the org's real plan, resolved via
-      // Clerk's auth().has({ plan }) on the Next.js side and passed in here.
-      const featuredLimit = FEATURED_LIMITS.starter;
+      const featuredLimit = FEATURED_LIMITS[args.plan];
       if (featuredLimit !== null && org.featuredJobCount >= featuredLimit) {
         throw new ConvexError(
-          `Starter plan doesn't include featured listings. Upgrade to Pro to feature jobs.`
+          args.plan === "starter"
+            ? "Starter plan doesn't include featured listings. Upgrade to Pro to feature jobs."
+            : `${args.plan} plan featured listing limit reached (${featuredLimit}).`
         );
       }
       await ctx.db.patch(org._id, { featuredJobCount: org.featuredJobCount + 1 });
