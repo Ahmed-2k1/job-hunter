@@ -4,6 +4,7 @@ import { useOrganization } from "@clerk/nextjs";
 import { useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useRouter } from "next/navigation";
+import { publishJobAction } from "../../actions";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -30,7 +31,6 @@ export default function NewJobPage() {
   const { organization } = useOrganization();
   const router = useRouter();
   const createJob = useMutation(api.jobs.createJob);
-  const publishJob = useMutation(api.jobs.publishJob);
 
   const {
     register,
@@ -55,7 +55,7 @@ export default function NewJobPage() {
       });
 
       if (publish) {
-        await publishJob({ jobId, clerkOrgId: organization.id });
+        await publishJobAction(jobId);
         toast.success("Job published successfully!");
       } else {
         toast.success("Job saved as draft");

@@ -10,6 +10,7 @@ import { Card } from "@/components/ui/card";
 import { JobCard } from "@/components/job-card";
 import { Plus, Eye, X, Rocket } from "lucide-react";
 import { toast } from "sonner";
+import { publishJobAction } from "../actions";
 
 const statusLabels = { active: "Active", draft: "Draft", closed: "Closed" } as const;
 const typeLabels: Record<string, string> = {
@@ -25,13 +26,11 @@ export default function EmployerJobsPage() {
     api.jobs.listOrgJobs,
     organization ? { clerkOrgId: organization.id } : "skip"
   );
-  const publishJob = useMutation(api.jobs.publishJob);
   const closeJob = useMutation(api.jobs.closeJob);
 
   async function handlePublish(jobId: Id<"jobs">) {
-    if (!organization) return;
     try {
-      await publishJob({ jobId, clerkOrgId: organization.id });
+      await publishJobAction(jobId);
       toast.success("Job published successfully");
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : "Failed to publish job");
